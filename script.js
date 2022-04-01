@@ -249,8 +249,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // normalize audioHigh
         const div = Math.floor(config.AUDIO_N_BINS * (1 - config.AUDIO_CUTOFF_HIGH_LO));
-        if (0 < div)
-        frameAudioHigh /= div;
+        if (0 < div) frameAudioHigh /= div;
+
         if (false && 0 < max) {
             let info = bins.map((v) => `${v.toFixed(2)}`).reduce((p, v) => `${p}, ${v}`);
             info +=  `, high=${frameAudioHigh.toFixed(2)}`;
