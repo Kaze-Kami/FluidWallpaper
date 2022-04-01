@@ -4,16 +4,16 @@ const canvas = document.getElementsByTagName('canvas')[0];
 canvas.width = canvas.clientWidth;
 canvas.height = canvas.clientHeight;
 
-Array.prototype.getRandom = function() {
+Array.prototype.getRandom = function () {
     return this[Math.floor(Math.random() * this.length)];
 };
-
-let splatColors = [{ r: 0, g: 0.15, b: 0 }];
 
 let idleSplats;
 
 function idleSplatsFunction() {
-    multipleSplats(parseInt(Math.random() * config.RANDOM_AMOUNT) + (config.RANDOM_AMOUNT / 2) + 1);
+    if (audioLessFrames > 10) {
+        multipleSplats(Math.random() * config.RANDOM_AMOUNT + (config.RANDOM_AMOUNT / 2) + 1);
+    }
 }
 
 let config = {
@@ -26,9 +26,8 @@ let config = {
     CURL: 30,
     SPLAT_RADIUS: 0.3,
     SHADING: true,
-    COLORFUL: true,
     PAUSED: false,
-    BACK_COLOR: { r: 0, g: 0, b: 0 },
+    BACK_COLOR: {r: 0, g: 0, b: 0},
     TRANSPARENT: false,
     BLOOM: true,
     BLOOM_ITERATIONS: 8,
@@ -36,7 +35,7 @@ let config = {
     BLOOM_INTENSITY: 0.8,
     BLOOM_THRESHOLD: 0.6,
     BLOOM_SOFT_KNEE: 0.7,
-    POINTER_COLOR: [{ r: 0, g: 0.15, b: 0 }],
+    POINTER_COLOR: [{r: 0, g: 0.15, b: 0}],
     IDLE_SPLATS: false,
     RANDOM_AMOUNT: 10,
     RANDOM_INTERVAL: 1,
@@ -68,6 +67,7 @@ const audioEpsilon = .002;
 const nFreq = 64; // number of audio frequencies per channel
 let peakFilter = Array(config.AUDIO_N_BINS).fill(0);
 let audioHigh = 0;
+let audioLessFrames = 0;
 
 function fetchProp(props, propName, cfgName, ifPresentCallback = null) {
     if (props[propName]) {
@@ -78,7 +78,8 @@ function fetchProp(props, propName, cfgName, ifPresentCallback = null) {
     }
 }
 
-document.addEventListener("DOMContentLoaded", () => {   
+document.addEventListener("DOMContentLoaded", () => {
+    // noinspection JSUnusedGlobalSymbols
     window.wallpaperPropertyListener = {
         applyUserProperties: (properties) => {
             // audio props
@@ -99,111 +100,81 @@ document.addEventListener("DOMContentLoaded", () => {
             fetchProp(properties, "audio_response_color_filter_amp", "AUDIO_COLOR_FILTER_AMP");
             fetchProp(properties, "audio_response_color_filter_exp", "AUDIO_COLOR_FILTER_EXP");
 
-            if (properties.bloom_intensity) config.BLOOM_INTENSITY = properties.bloom_intensity.value;
-            if (properties.bloom_threshold) config.BLOOM_THRESHOLD = properties.bloom_threshold.value;
-            if (properties.colorful) config.COLORFUL = properties.colorful.value;
-            if (properties.density_diffusion) config.DENSITY_DISSIPATION = properties.density_diffusion.value;
-            if (properties.enable_bloom) config.BLOOM = properties.enable_bloom.value;
-            if (properties.paused) config.PAUSED = properties.paused.value;
-            if (properties.pressure_diffusion) config.PRESSURE_DISSIPATION = properties.pressure_diffusion.value;
-            if (properties.shading) config.SHADING = properties.shading.value;
-            if (properties.splat_radius) config.SPLAT_RADIUS = properties.splat_radius.value;
-            if (properties.velocity_diffusion) config.VELOCITY_DISSIPATION = properties.velocity_diffusion.value;
-            if (properties.vorticity) config.CURL = properties.vorticity.value;
-            if (properties.simulation_resolution) {
-                config.SIM_RESOLUTION = properties.simulation_resolution.value;
-                initFramebuffers();
-            }
-            if (properties.dye_resolution) {
-                config.DYE_RESOLUTION = properties.dye_resolution.value;
-                initFramebuffers();
-            }
-            if (properties.splat_color) {
-                splatColors[0] = rgbToPointerColor(properties.splat_color.value);
-                if (!config.COLORFUL) config.POINTER_COLOR = [splatColors[0]];
-            }
-            if (properties.splat_color_2) splatColors[1] = rgbToPointerColor(properties.splat_color_2.value);
-            if (properties.splat_color_3) splatColors[2] = rgbToPointerColor(properties.splat_color_3.value);
-            if (properties.splat_color_4) splatColors[3] = rgbToPointerColor(properties.splat_color_4.value);
-            if (properties.splat_color_5) splatColors[4] = rgbToPointerColor(properties.splat_color_5.value);
-            if (properties.background_color) {
-                let c = properties.background_color.value.split(" "),
-                r = Math.floor(c[0]*255),
-                g = Math.floor(c[1]*255),
-                b = Math.floor(c[2]*255);
+            fetchProp(properties, "bloom_intensity", "BLOOM_INTENSITY");
+            fetchProp(properties, "bloom_threshold", "BLOOM_THRESHOLD");
+            fetchProp(properties, "density_diffusion", "DENSITY_DISSIPATION");
+            fetchProp(properties, "enable_bloom", "BLOOM");
+            fetchProp(properties, "paused", "PAUSED");
+            fetchProp(properties, "pressure_diffusion", "PRESSURE_DISSIPATION");
+            fetchProp(properties, "shading", "SHADING");
+            fetchProp(properties, "splat_radius", "SPLAT_RADIUS");
+            fetchProp(properties, "velocity_diffusion", "VELOCITY_DISSIPATION");
+            fetchProp(properties, "vorticity", "CURL");
+            fetchProp(properties, "simulation_resolution", "SIM_RESOLUTION", initFrameBuffers);
+            fetchProp(properties, "dye_resolution", "DYE_RESOLUTION", initFrameBuffers);
+            fetchProp(properties, "background_color", null, (rawColor) => {
+                let c = rawColor.split(" "),
+                    r = Math.floor(c[0] * 255),
+                    g = Math.floor(c[1] * 255),
+                    b = Math.floor(c[2] * 255);
                 document.body.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
                 config.BACK_COLOR.r = r;
                 config.BACK_COLOR.g = g;
                 config.BACK_COLOR.b = b;
-            }
-            if (properties.more_colors && !properties.more_colors.value) {
-                config.POINTER_COLOR = [splatColors[0]];
-            } else if (properties.more_colors && properties.more_colors.value) {
-                config.POINTER_COLOR = splatColors;
-            }
-            if (properties.use_background_image) config.TRANSPARENT = properties.use_background_image.value;
-            if (properties.background_image) canvas.style.backgroundImage = `url("file:///${properties.background_image.value}")`;
-            if (properties.repeat_background) canvas.style.backgroundRepeat = properties.repeat_background.value ? "repeat" : "no-repeat";
-            if (properties.background_image_size) canvas.style.backgroundSize = properties.background_image_size.value;
-            if (properties.idle_random_splats) {
-                config.IDLE_SPLATS = properties.idle_random_splats.value;
-                if (properties.idle_random_splats.value) {
+            });
+            fetchProp(properties, "idle_random_splats", "IDLE_SPLATS", (v) => {
+                if (v) {
                     idleSplats = setInterval(idleSplatsFunction, config.RANDOM_INTERVAL * 1000);
                 } else {
                     clearInterval(idleSplats);
                 }
-            }
-            if (properties.random_splat_interval) {
-                config.RANDOM_INTERVAL = properties.random_splat_interval.value;
+            });
+            fetchProp(properties, "random_splat_interval", "RANDOM_INTERVAL", () => {
                 if (config.IDLE_SPLATS) {
                     clearInterval(idleSplats);
                     idleSplats = setInterval(idleSplatsFunction, config.RANDOM_INTERVAL * 1000);
                 }
-            }
-            if (properties.random_splat_amount) {
-                config.RANDOM_AMOUNT = properties.random_splat_amount.value;
+            });
+            fetchProp(properties, "random_splat_amount", "RANDOM_AMOUNT", () => {
                 if (config.IDLE_SPLATS) {
                     clearInterval(idleSplats);
                     idleSplats = setInterval(idleSplatsFunction, config.RANDOM_INTERVAL * 1000);
                 }
-            }
-            if (properties.splat_on_click) config.SPLAT_ON_CLICK = properties.splat_on_click.value;
-            if (properties.show_mouse_movement) config.SHOW_MOUSE_MOVEMENT = properties.show_mouse_movement.value;
+            });
+            fetchProp(properties, "splat_on_click", "SPLAT_ON_CLICK");
+            fetchProp(properties, "show_mouse_movement", "SHOW_MOUSE_MOVEMENT");
         }
     };
 
+    // noinspection JSUnresolvedFunction
     window.wallpaperRegisterAudioListener((audioArray) => {
-        if (!config.AUDIO_RESPONSE_ENABLED) return;
+        if (!config.AUDIO_RESPONSE_ENABLED) {
+            audioLessFrames += 1;
+            return;
+        }
 
         let bins = Array(config.AUDIO_N_BINS).fill(0);
 
-        // re-scale audio bins
         for (let i = 0; i < config.AUDIO_N_BINS; i++) {
             const start = Math.max(0, Math.floor(nFreq * Math.pow((i - 1) / config.AUDIO_N_BINS, 2)));
             const end = Math.min(nFreq, Math.floor(nFreq * Math.pow((i + 2) / config.AUDIO_N_BINS, 2)));
-            // console.log(`Bin ${i}: [${start} : ${end}]`);
             for (let j = start; j < end; j++) {
                 bins[i] += (audioArray[j] + audioArray[nFreq + j]);
             }
-            // normalize with number of frequencies used
+
             const binNFreq = (end - start)
             if (0 < binNFreq) bins[i] /= binNFreq;
             else console.warn(`Bin ${i} has frequency range of 0!`);
         }
 
-        // filter average volume
         const avgAmp = bins.reduce((c, v) => c + v) / config.AUDIO_N_BINS;
-        bins = bins.map((v) => Math.max(0, v -avgAmp));
+        bins = bins.map((v) => Math.max(0, v - avgAmp));
 
-        // map amplitudes to values above threshold
-        // and accumulate high peak
         let max = Math.max.apply(null, bins);
         let frameAudioHigh = 0;
-        if (0 < max) {
-            // normalize bins
-            bins = bins.map((v) => v / max);
 
-            // apply threshold to bins and update recent
+        if (0 < max) {
+            bins = bins.map((v) => v / max);
             for (let i = 0; i < config.AUDIO_N_BINS; i++) {
                 const v = bins[i];
                 let thOrg = (v - peakFilter[i] - config.AUDIO_THRESHOLD);
@@ -214,69 +185,41 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (config.AUDIO_CUTOFF_HIGH_LO <= i / config.AUDIO_N_BINS) {
                     frameAudioHigh += v;
                 }
-
-                // let audio decay
-                if (0 < config.AUDIO_N_SAMPLES) {
-                    peakFilter[i] = (peakFilter[i] * config.AUDIO_N_SAMPLES + v) / (config.AUDIO_N_SAMPLES + 1);
-                }
             }
         }
-        // let audio decay
-        else if (0 < config.AUDIO_N_SAMPLES) {
-            for (let i = 0; i < config.AUDIO_N_BINS; i++) {
-                peakFilter[i] *= config.AUDIO_N_SAMPLES / (config.AUDIO_N_SAMPLES + 1);
+        for (let i = 0; i < bins.length; i++) {
+            if (0 < config.AUDIO_N_SAMPLES) {
+                peakFilter[i] = (peakFilter[i] * config.AUDIO_N_SAMPLES + bins[i]) / (config.AUDIO_N_SAMPLES + 1);
             }
         }
 
-        // maybe splat
-        max = Math.max.apply(null, bins); // recalculate max, as bin values have changed
+        let isAudio = false;
+        max = Math.max.apply(null, bins);
         if (0 < max) {
-            // console.log(bins.map((v, i) => v.toFixed(2)));
             for (let i = 0; i < config.AUDIO_N_BINS; i++) {
                 const th = Math.min(1, bins[i] * config.AUDIO_SENSITIVITY);
                 if (0 < th && config.AUDIO_SPLATS) {
-                    // splat
                     const brightness = th + config.AUDIO_SPLAT_BRIGHTNESS_BASE * (1 - th);
                     const rBase = config.AUDIO_SPLAT_SIZE_BASE / 10;
                     const rVar = 1 - Math.pow(i / config.AUDIO_N_BINS, config.AUDIO_SPLAT_SIZE_AMP);
-                    // console.log(`${rBase}, ${rVar}`);
                     const radius = rBase * rVar;
-                    // console.log(`Bin ${i}/${config.AUDIO_N_BINS} active: ${th}`);
-                    mySplat(brightness, radius);
+                    const color = generateColor(brightness);
+                    const x = canvas.width * Math.random();
+                    const y = canvas.height * Math.random();
+                    const dx = 1000 * (Math.random() - 0.5);
+                    const dy = 1000 * (Math.random() - 0.5);
+                    splat(x, y, dx, dy, color, radius);
+                    isAudio = true;
                 }
             }
         }
 
-        // normalize audioHigh
-        const div = Math.floor(config.AUDIO_N_BINS * (1 - config.AUDIO_CUTOFF_HIGH_LO));
-        if (0 < div) frameAudioHigh /= div;
-
-        if (false && 0 < max) {
-            let info = bins.map((v) => `${v.toFixed(2)}`).reduce((p, v) => `${p}, ${v}`);
-            info +=  `, high=${frameAudioHigh.toFixed(2)}`;
-            console.log(info)
-        }
+        if (isAudio) audioLessFrames = 0;
+        const norm = Math.floor(config.AUDIO_N_BINS * (1 - config.AUDIO_CUTOFF_HIGH_LO));
+        if (0 < norm) frameAudioHigh /= norm;
         audioHigh = (audioHigh * config.AUDIO_N_SAMPLES + frameAudioHigh) / (config.AUDIO_N_SAMPLES + 1);
     });
 });
-
-function indexOfMax(arr) {
-    if (arr.length === 0) {
-        return -1;
-    }
-
-    var max = arr[0];
-    var maxIndex = 0;
-
-    for (var i = 1; i < arr.length; i++) {
-        if (arr[i] > max) {
-            maxIndex = i;
-            max = arr[i];
-        }
-    }
-
-    return maxIndex;
-}
 
 class pointerPrototype {
     constructor() {
@@ -286,28 +229,28 @@ class pointerPrototype {
         this.dx = 0;
         this.dy = 0;
         this.down = false;
-        this.moved = false;
-        this.color = config.COLORFUL ? generateColor() : config.POINTER_COLOR.getRandom();
+        // this.moved = false;
+        this.color = generateColor(.15);
     }
 }
 
 let pointers = [];
 let splatStack = [];
-let bloomFramebuffers = [];
+let bloomFrameBuffers = [];
 pointers.push(new pointerPrototype());
 
-const { gl, ext } = getWebGLContext(canvas);
+const {gl, ext} = getWebGLContext(canvas);
 
-if (isMobile())
+if (isMobile()) {
     config.SHADING = false;
-if (!ext.supportLinearFiltering)
-{
+}
+if (!ext.supportLinearFiltering) {
     config.SHADING = false;
     config.BLOOM = false;
 }
 
-function getWebGLContext (canvas) {
-    const params = { alpha: true, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false };
+function getWebGLContext(canvas) {
+    const params = {alpha: true, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false};
 
     let gl = canvas.getContext('webgl2', params);
     const isWebGL2 = !!gl;
@@ -331,14 +274,11 @@ function getWebGLContext (canvas) {
     let formatRG;
     let formatR;
 
-    if (isWebGL2)
-    {
+    if (isWebGL2) {
         formatRGBA = getSupportedFormat(gl, gl.RGBA16F, gl.RGBA, halfFloatTexType);
         formatRG = getSupportedFormat(gl, gl.RG16F, gl.RG, halfFloatTexType);
         formatR = getSupportedFormat(gl, gl.R16F, gl.RED, halfFloatTexType);
-    }
-    else
-    {
+    } else {
         formatRGBA = getSupportedFormat(gl, gl.RGBA, gl.RGBA, halfFloatTexType);
         formatRG = getSupportedFormat(gl, gl.RGBA, gl.RGBA, halfFloatTexType);
         formatR = getSupportedFormat(gl, gl.RGBA, gl.RGBA, halfFloatTexType);
@@ -356,12 +296,9 @@ function getWebGLContext (canvas) {
     };
 }
 
-function getSupportedFormat (gl, internalFormat, format, type)
-{
-    if (!supportRenderTextureFormat(gl, internalFormat, format, type))
-    {
-        switch (internalFormat)
-        {
+function getSupportedFormat(gl, internalFormat, format, type) {
+    if (!supportRenderTextureFormat(gl, internalFormat, format, type)) {
+        switch (internalFormat) {
             case gl.R16F:
                 return getSupportedFormat(gl, gl.RG16F, gl.RG, type);
             case gl.RG16F:
@@ -377,7 +314,7 @@ function getSupportedFormat (gl, internalFormat, format, type)
     }
 }
 
-function supportRenderTextureFormat (gl, internalFormat, format, type) {
+function supportRenderTextureFormat(gl, internalFormat, format, type) {
     let texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -391,17 +328,16 @@ function supportRenderTextureFormat (gl, internalFormat, format, type) {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
 
     const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-    if (status != gl.FRAMEBUFFER_COMPLETE)
-        return false;
-    return true;
+    return status === gl.FRAMEBUFFER_COMPLETE;
+
 }
 
-function isMobile () {
+function isMobile() {
     return /Mobi|Android/i.test(navigator.userAgent);
 }
 
 class GLProgram {
-    constructor (vertexShader, fragmentShader) {
+    constructor(vertexShader, fragmentShader) {
         this.uniforms = {};
         this.program = gl.createProgram();
 
@@ -419,7 +355,7 @@ class GLProgram {
         }
     }
 
-    bind () {
+    bind() {
         gl.useProgram(this.program);
     }
 
@@ -431,7 +367,7 @@ class GLProgram {
     }
 }
 
-function compileShader (type, source) {
+function compileShader(type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
@@ -944,37 +880,37 @@ let bloom;
 
 let ditheringTexture = createTextureAsync('LDR_RGB1_0.png');
 
-const clearProgram               = new GLProgram(baseVertexShader, clearShader);
-const colorProgram               = new GLProgram(baseVertexShader, colorShader);
-const backgroundProgram          = new GLProgram(baseVertexShader, backgroundShader);
-const displayProgram             = new GLProgram(baseVertexShader, displayShader);
-const displayBloomProgram        = new GLProgram(baseVertexShader, displayBloomShader);
-const displayShadingProgram      = new GLProgram(baseVertexShader, displayShadingShader);
+const clearProgram = new GLProgram(baseVertexShader, clearShader);
+const colorProgram = new GLProgram(baseVertexShader, colorShader);
+const backgroundProgram = new GLProgram(baseVertexShader, backgroundShader);
+const displayProgram = new GLProgram(baseVertexShader, displayShader);
+const displayBloomProgram = new GLProgram(baseVertexShader, displayBloomShader);
+const displayShadingProgram = new GLProgram(baseVertexShader, displayShadingShader);
 const displayBloomShadingProgram = new GLProgram(baseVertexShader, displayBloomShadingShader);
-const bloomPrefilterProgram      = new GLProgram(baseVertexShader, bloomPrefilterShader);
-const bloomBlurProgram           = new GLProgram(baseVertexShader, bloomBlurShader);
-const bloomFinalProgram          = new GLProgram(baseVertexShader, bloomFinalShader);
-const splatProgram               = new GLProgram(baseVertexShader, splatShader);
-const advectionProgram           = new GLProgram(baseVertexShader, ext.supportLinearFiltering ? advectionShader : advectionManualFilteringShader);
-const divergenceProgram          = new GLProgram(baseVertexShader, divergenceShader);
-const curlProgram                = new GLProgram(baseVertexShader, curlShader);
-const vorticityProgram           = new GLProgram(baseVertexShader, vorticityShader);
-const pressureProgram            = new GLProgram(baseVertexShader, pressureShader);
-const gradienSubtractProgram     = new GLProgram(baseVertexShader, gradientSubtractShader);
+const bloomPrefilterProgram = new GLProgram(baseVertexShader, bloomPrefilterShader);
+const bloomBlurProgram = new GLProgram(baseVertexShader, bloomBlurShader);
+const bloomFinalProgram = new GLProgram(baseVertexShader, bloomFinalShader);
+const splatProgram = new GLProgram(baseVertexShader, splatShader);
+const advectionProgram = new GLProgram(baseVertexShader, ext.supportLinearFiltering ? advectionShader : advectionManualFilteringShader);
+const divergenceProgram = new GLProgram(baseVertexShader, divergenceShader);
+const curlProgram = new GLProgram(baseVertexShader, curlShader);
+const vorticityProgram = new GLProgram(baseVertexShader, vorticityShader);
+const pressureProgram = new GLProgram(baseVertexShader, pressureShader);
+const gradientSubtractProgram = new GLProgram(baseVertexShader, gradientSubtractShader);
 
-function initFramebuffers () {
+function initFrameBuffers() {
     let simRes = getResolution(config.SIM_RESOLUTION);
     let dyeRes = getResolution(config.DYE_RESOLUTION);
 
-    simWidth  = simRes.width;
+    simWidth = simRes.width;
     simHeight = simRes.height;
-    dyeWidth  = dyeRes.width;
+    dyeWidth = dyeRes.width;
     dyeHeight = dyeRes.height;
 
     const texType = ext.halfFloatTexType;
-    const rgba    = ext.formatRGBA;
-    const rg      = ext.formatRG;
-    const r       = ext.formatR;
+    const rgba = ext.formatRGBA;
+    const rg = ext.formatRG;
+    const r = ext.formatR;
     const filtering = ext.supportLinearFiltering ? gl.LINEAR : gl.NEAREST;
 
     if (density == null)
@@ -987,14 +923,14 @@ function initFramebuffers () {
     else
         velocity = resizeDoubleFBO(velocity, simWidth, simHeight, rg.internalFormat, rg.format, texType, filtering);
 
-    divergence = createFBO      (simWidth, simHeight, r.internalFormat, r.format, texType, gl.NEAREST);
-    curl       = createFBO      (simWidth, simHeight, r.internalFormat, r.format, texType, gl.NEAREST);
-    pressure   = createDoubleFBO(simWidth, simHeight, r.internalFormat, r.format, texType, gl.NEAREST);
+    divergence = createFBO(simWidth, simHeight, r.internalFormat, r.format, texType, gl.NEAREST);
+    curl = createFBO(simWidth, simHeight, r.internalFormat, r.format, texType, gl.NEAREST);
+    pressure = createDoubleFBO(simWidth, simHeight, r.internalFormat, r.format, texType, gl.NEAREST);
 
-    initBloomFramebuffers();
+    initBloomFrameBuffers();
 }
 
-function initBloomFramebuffers () {
+function initBloomFrameBuffers() {
     let res = getResolution(config.BLOOM_RESOLUTION);
 
     const texType = ext.halfFloatTexType;
@@ -1003,20 +939,19 @@ function initBloomFramebuffers () {
 
     bloom = createFBO(res.width, res.height, rgba.internalFormat, rgba.format, texType, filtering);
 
-    bloomFramebuffers.length = 0;
-    for (let i = 0; i < config.BLOOM_ITERATIONS; i++)
-    {
+    bloomFrameBuffers.length = 0;
+    for (let i = 0; i < config.BLOOM_ITERATIONS; i++) {
         let width = res.width >> (i + 1);
         let height = res.height >> (i + 1);
 
         if (width < 2 || height < 2) break;
 
         let fbo = createFBO(width, height, rgba.internalFormat, rgba.format, texType, filtering);
-        bloomFramebuffers.push(fbo);
+        bloomFrameBuffers.push(fbo);
     }
 }
 
-function createFBO (w, h, internalFormat, format, type, param) {
+function createFBO(w, h, internalFormat, format, type, param) {
     gl.activeTexture(gl.TEXTURE0);
     let texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -1037,7 +972,7 @@ function createFBO (w, h, internalFormat, format, type, param) {
         fbo,
         width: w,
         height: h,
-        attach (id) {
+        attach(id) {
             gl.activeTexture(gl.TEXTURE0 + id);
             gl.bindTexture(gl.TEXTURE_2D, texture);
             return id;
@@ -1045,24 +980,24 @@ function createFBO (w, h, internalFormat, format, type, param) {
     };
 }
 
-function createDoubleFBO (w, h, internalFormat, format, type, param) {
+function createDoubleFBO(w, h, internalFormat, format, type, param) {
     let fbo1 = createFBO(w, h, internalFormat, format, type, param);
     let fbo2 = createFBO(w, h, internalFormat, format, type, param);
 
     return {
-        get read () {
+        get read() {
             return fbo1;
         },
-        set read (value) {
+        set read(value) {
             fbo1 = value;
         },
-        get write () {
+        get write() {
             return fbo2;
         },
-        set write (value) {
+        set write(value) {
             fbo2 = value;
         },
-        swap () {
+        swap() {
             let temp = fbo1;
             fbo1 = fbo2;
             fbo2 = temp;
@@ -1070,22 +1005,22 @@ function createDoubleFBO (w, h, internalFormat, format, type, param) {
     }
 }
 
-function resizeFBO (target, w, h, internalFormat, format, type, param) {
+function resizeFBO(target, w, h, internalFormat, format, type, param) {
     let newFBO = createFBO(w, h, internalFormat, format, type, param);
     clearProgram.bind();
-    gl.uniform1i(clearProgram.uniforms.uTexture, target.attach(0));
+    clearProgram.uniform("1i", "uTexture", target.attach(0));
     gl.uniform1f(clearProgram.uniforms.value, 1);
     blit(newFBO.fbo);
     return newFBO;
 }
 
-function resizeDoubleFBO (target, w, h, internalFormat, format, type, param) {
+function resizeDoubleFBO(target, w, h, internalFormat, format, type, param) {
     target.read = resizeFBO(target.read, w, h, internalFormat, format, type, param);
     target.write = createFBO(w, h, internalFormat, format, type, param);
     return target;
 }
 
-function createTextureAsync (url) {
+function createTextureAsync(url) {
     let texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -1098,7 +1033,7 @@ function createTextureAsync (url) {
         texture,
         width: 1,
         height: 1,
-        attach (id) {
+        attach(id) {
             gl.activeTexture(gl.TEXTURE0 + id);
             gl.bindTexture(gl.TEXTURE_2D, texture);
             return id;
@@ -1117,14 +1052,15 @@ function createTextureAsync (url) {
     return obj;
 }
 
-initFramebuffers();
-multipleSplats(parseInt(Math.random() * 20) + 3);
+initFrameBuffers();
+// dont think we need this
+// multipleSplats(parseInt(Math.random() * 20) + 3);
 
 let lastColorChangeTime = Date.now();
 
 update();
 
-function update () {
+function update() {
     resizeCanvas();
     input();
     if (!config.PAUSED)
@@ -1133,131 +1069,117 @@ function update () {
     requestAnimationFrame(update);
 }
 
-function input () {
+function input() {
     if (splatStack.length > 0)
         multipleSplats(splatStack.pop());
 
     for (let i = 0; i < pointers.length; i++) {
         const p = pointers[i];
         if (p.moved) {
-            splat(p.x, p.y, p.dx, p.dy, p.color);
+            splat(p.x, p.y, p.dx, p.dy, p.color, config.SPLAT_RADIUS);
             p.moved = false;
         }
     }
 
-    if (lastColorChangeTime + 100 < Date.now())
-    {
+    if (lastColorChangeTime + 100 < Date.now()) {
         lastColorChangeTime = Date.now();
         for (let i = 0; i < pointers.length; i++) {
             const p = pointers[i];
-            p.color = config.COLORFUL ? generateColor() : config.POINTER_COLOR.getRandom();
+            p.color = generateColor(.15);
         }
     }
 }
 
-function step (dt) {
+function
+step(dt) {
     gl.disable(gl.BLEND);
     gl.viewport(0, 0, simWidth, simHeight);
 
     curlProgram.bind();
-    gl.uniform2f(curlProgram.uniforms.texelSize, 1.0 / simWidth, 1.0 / simHeight);
-    gl.uniform1i(curlProgram.uniforms.uVelocity, velocity.read.attach(0));
+    curlProgram.uniform("2f", "texelSize", 1.0 / simWidth, 1.0 / simHeight);
+    curlProgram.uniform("1i", "uVelocity", velocity.read.attach(0));
     blit(curl.fbo);
 
     vorticityProgram.bind();
-    gl.uniform2f(vorticityProgram.uniforms.texelSize, 1.0 / simWidth, 1.0 / simHeight);
-    gl.uniform1i(vorticityProgram.uniforms.uVelocity, velocity.read.attach(0));
-    gl.uniform1i(vorticityProgram.uniforms.uCurl, curl.attach(1));
-    gl.uniform1f(vorticityProgram.uniforms.curl, config.CURL);
-    gl.uniform1f(vorticityProgram.uniforms.dt, dt);
+    vorticityProgram.uniform("2f", "texelSize", 1.0 / simWidth, 1.0 / simHeight);
+    vorticityProgram.uniform("1i", "uVelocity", velocity.read.attach(0));
+    vorticityProgram.uniform("1i", "uCurl", curl.attach(1));
+    vorticityProgram.uniform("1f", "curl", config.CURL);
+    vorticityProgram.uniform("1f", "dt", dt);
     blit(velocity.write.fbo);
     velocity.swap();
 
     divergenceProgram.bind();
-    gl.uniform2f(divergenceProgram.uniforms.texelSize, 1.0 / simWidth, 1.0 / simHeight);
-    gl.uniform1i(divergenceProgram.uniforms.uVelocity, velocity.read.attach(0));
+    divergenceProgram.uniform("2f", "texelSize", 1.0 / simWidth, 1.0 / simHeight);
+    divergenceProgram.uniform("1i", "uVelocity", velocity.read.attach(0));
     blit(divergence.fbo);
 
     clearProgram.bind();
-    gl.uniform1i(clearProgram.uniforms.uTexture, pressure.read.attach(0));
+    clearProgram.uniform("1i", "uTexture", pressure.read.attach(0));
     gl.uniform1f(clearProgram.uniforms.value, config.PRESSURE_DISSIPATION);
     blit(pressure.write.fbo);
     pressure.swap();
 
     pressureProgram.bind();
-    gl.uniform2f(pressureProgram.uniforms.texelSize, 1.0 / simWidth, 1.0 / simHeight);
-    gl.uniform1i(pressureProgram.uniforms.uDivergence, divergence.attach(0));
+    pressureProgram.uniform("2f", "texelSize", 1.0 / simWidth, 1.0 / simHeight);
+    pressureProgram.uniform("1i", "uDivergence", divergence.attach(0));
     for (let i = 0; i < config.PRESSURE_ITERATIONS; i++) {
-        gl.uniform1i(pressureProgram.uniforms.uPressure, pressure.read.attach(1));
+        pressureProgram.uniform("1i", "uPressure", pressure.read.attach(1));
         blit(pressure.write.fbo);
         pressure.swap();
     }
 
-    gradienSubtractProgram.bind();
-    gl.uniform2f(gradienSubtractProgram.uniforms.texelSize, 1.0 / simWidth, 1.0 / simHeight);
-    gl.uniform1i(gradienSubtractProgram.uniforms.uPressure, pressure.read.attach(0));
-    gl.uniform1i(gradienSubtractProgram.uniforms.uVelocity, velocity.read.attach(1));
+    gradientSubtractProgram.bind();
+    gradientSubtractProgram.uniform("2f", "texelSize", 1.0 / simWidth, 1.0 / simHeight);
+    gradientSubtractProgram.uniform("1i", "uPressure", pressure.read.attach(0));
+    gradientSubtractProgram.uniform("1i", "uVelocity", velocity.read.attach(1));
     blit(velocity.write.fbo);
     velocity.swap();
 
     advectionProgram.bind();
-    gl.uniform2f(advectionProgram.uniforms.texelSize, 1.0 / simWidth, 1.0 / simHeight);
+    advectionProgram.uniform("2f", "texelSize", 1.0 / simWidth, 1.0 / simHeight);
     if (!ext.supportLinearFiltering)
-        gl.uniform2f(advectionProgram.uniforms.dyeTexelSize, 1.0 / simWidth, 1.0 / simHeight);
+        advectionProgram.uniform("2f", "dyeTexelSize", 1.0 / simWidth, 1.0 / simHeight);
     let velocityId = velocity.read.attach(0);
-    gl.uniform1i(advectionProgram.uniforms.uVelocity, velocityId);
-    gl.uniform1i(advectionProgram.uniforms.uSource, velocityId);
-    gl.uniform1f(advectionProgram.uniforms.dt, dt);
-    gl.uniform1f(advectionProgram.uniforms.dissipation, config.VELOCITY_DISSIPATION);
+    advectionProgram.uniform("1i", "uVelocity", velocityId);
+    advectionProgram.uniform("1i", "uSource", velocityId);
+    advectionProgram.uniform("1f", "dt", dt);
+    advectionProgram.uniform("1f", "dissipation", config.VELOCITY_DISSIPATION);
     blit(velocity.write.fbo);
     velocity.swap();
 
     gl.viewport(0, 0, dyeWidth, dyeHeight);
 
     if (!ext.supportLinearFiltering)
-        gl.uniform2f(advectionProgram.uniforms.dyeTexelSize, 1.0 / dyeWidth, 1.0 / dyeHeight);
-    gl.uniform1i(advectionProgram.uniforms.uVelocity, velocity.read.attach(0));
-    gl.uniform1i(advectionProgram.uniforms.uSource, density.read.attach(1));
-    gl.uniform1f(advectionProgram.uniforms.dissipation, config.DENSITY_DISSIPATION);
+        advectionProgram.uniform("2f", "dyeTexelSize", 1.0 / dyeWidth, 1.0 / dyeHeight);
+    advectionProgram.uniform("1i", "uVelocity", velocity.read.attach(0));
+    advectionProgram.uniform("1i", "uSource", density.read.attach(1));
+    advectionProgram.uniform("1f", "dissipation", config.DENSITY_DISSIPATION);
     blit(density.write.fbo);
     density.swap();
 }
 
-function render (target) {
+function render(target) {
     if (config.BLOOM)
         applyBloom(density.read, bloom);
 
-    if (target == null || !config.TRANSPARENT) {
-        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-        gl.enable(gl.BLEND);
-    }
-    else {
-        gl.disable(gl.BLEND);
-    }
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.enable(gl.BLEND);
 
-    let width  = target == null ? gl.drawingBufferWidth : dyeWidth;
+    let width = target == null ? gl.drawingBufferWidth : dyeWidth;
     let height = target == null ? gl.drawingBufferHeight : dyeHeight;
 
     gl.viewport(0, 0, width, height);
 
-    if (!config.TRANSPARENT) {
-        colorProgram.bind();
-        let bc = config.BACK_COLOR;
-        gl.uniform4f(colorProgram.uniforms.color, bc.r / 255, bc.g / 255, bc.b / 255, 1);
-        blit(target);
-    }
-
-    if (target == null && config.TRANSPARENT) {
-        backgroundProgram.bind();
-        gl.uniform1f(backgroundProgram.uniforms.aspectRatio, canvas.width / canvas.height);
-        blit(null);
-    }
+    colorProgram.bind();
+    let bc = config.BACK_COLOR;
+    gl.uniform4f(colorProgram.uniforms.color, bc.r / 255, bc.g / 255, bc.b / 255, 1);
+    blit(target);
 
     let program;
     if (config.SHADING) {
         program = config.BLOOM ? displayBloomShadingProgram : displayShadingProgram;
-    }
-    else {
+    } else {
         program = config.BLOOM ? displayBloomProgram : displayProgram;
     }
     program.bind();
@@ -1278,8 +1200,16 @@ function render (target) {
     blit(target);
 }
 
-function applyBloom (source, destination) {
-    if (bloomFramebuffers.length < 2)
+// expects bloomBlurProgram to be bound
+function blurTo(last, dest) {
+    bloomBlurProgram.uniform("2f", "texelSize", 1.0 / last.width, 1.0 / last.height);
+    bloomBlurProgram.uniform("1i", "uTexture", last.attach(0));
+    gl.viewport(0, 0, dest.width, dest.height);
+    blit(dest.fbo);
+}
+
+function applyBloom(source, destination) {
+    if (bloomFrameBuffers.length < 2)
         return;
 
     let last = destination;
@@ -1292,103 +1222,69 @@ function applyBloom (source, destination) {
     let curve2 = 0.25 / knee;
     gl.uniform3f(bloomPrefilterProgram.uniforms.curve, curve0, curve1, curve2);
     gl.uniform1f(bloomPrefilterProgram.uniforms.threshold, config.BLOOM_THRESHOLD);
-    gl.uniform1i(bloomPrefilterProgram.uniforms.uTexture, source.attach(0));
+    bloomPrefilterProgram.uniform("1i", "uTexture", source.attach(0));
     gl.viewport(0, 0, last.width, last.height);
     blit(last.fbo);
 
     bloomBlurProgram.bind();
-    for (let i = 0; i < bloomFramebuffers.length; i++) {
-        let dest = bloomFramebuffers[i];
-        gl.uniform2f(bloomBlurProgram.uniforms.texelSize, 1.0 / last.width, 1.0 / last.height);
-        gl.uniform1i(bloomBlurProgram.uniforms.uTexture, last.attach(0));
-        gl.viewport(0, 0, dest.width, dest.height);
-        blit(dest.fbo);
+    for (let i = 0; i < bloomFrameBuffers.length; i++) {
+        let dest = bloomFrameBuffers[i];
+        blurTo(last, dest);
         last = dest;
     }
 
     gl.blendFunc(gl.ONE, gl.ONE);
     gl.enable(gl.BLEND);
 
-    for (let i = bloomFramebuffers.length - 2; i >= 0; i--) {
-        let baseTex = bloomFramebuffers[i];
-        gl.uniform2f(bloomBlurProgram.uniforms.texelSize, 1.0 / last.width, 1.0 / last.height);
-        gl.uniform1i(bloomBlurProgram.uniforms.uTexture, last.attach(0));
-        gl.viewport(0, 0, baseTex.width, baseTex.height);
-        blit(baseTex.fbo);
+    for (let i = bloomFrameBuffers.length - 2; i >= 0; i--) {
+        let baseTex = bloomFrameBuffers[i];
+        blurTo(last, baseTex);
         last = baseTex;
     }
 
     gl.disable(gl.BLEND);
     bloomFinalProgram.bind();
-    gl.uniform2f(bloomFinalProgram.uniforms.texelSize, 1.0 / last.width, 1.0 / last.height);
-    gl.uniform1i(bloomFinalProgram.uniforms.uTexture, last.attach(0));
-    gl.uniform1f(bloomFinalProgram.uniforms.intensity, config.BLOOM_INTENSITY);
+    bloomFinalProgram.uniform("2f", "texelSize", 1.0 / last.width, 1.0 / last.height);
+    bloomFinalProgram.uniform("1i", "uTexture", last.attach(0));
+    bloomFinalProgram.uniform("1f", "intensity", config.BLOOM_INTENSITY);
     gl.viewport(0, 0, destination.width, destination.height);
     blit(destination.fbo);
 }
 
-function splat (x, y, dx, dy, color) {
+function splat(x, y, dx, dy, color, radius) {
     gl.viewport(0, 0, simWidth, simHeight);
     splatProgram.bind();
-    gl.uniform1i(splatProgram.uniforms.uTarget, velocity.read.attach(0));
+    splatProgram.uniform("1i", "uTarget", velocity.read.attach(0));
     gl.uniform1f(splatProgram.uniforms.aspectRatio, canvas.width / canvas.height);
-    gl.uniform2f(splatProgram.uniforms.point, x / canvas.width, 1.0 - y / canvas.height);
+    splatProgram.uniform("2f", "point", x / canvas.width, 1.0 - y / canvas.height);
     gl.uniform3f(splatProgram.uniforms.color, dx, -dy, 1.0);
-    gl.uniform1f(splatProgram.uniforms.radius, config.SPLAT_RADIUS / 100.0);
+    splatProgram.uniform("1f", "radius", radius / 100.0);
     blit(velocity.write.fbo);
     velocity.swap();
 
     gl.viewport(0, 0, dyeWidth, dyeHeight);
-    gl.uniform1i(splatProgram.uniforms.uTarget, density.read.attach(0));
+    splatProgram.uniform("1i", "uTarget", density.read.attach(0));
     gl.uniform3f(splatProgram.uniforms.color, color.r, color.g, color.b);
     blit(density.write.fbo);
     density.swap();
 }
 
-function multipleSplats (amount) {
+function multipleSplats(amount) {
     for (let i = 0; i < amount; i++) {
-        const color = config.COLORFUL ? generateColor() : Object.assign({}, config.POINTER_COLOR.getRandom());
-        color.r *= 10.0;
-        color.g *= 10.0;
-        color.b *= 10.0;
+        const color = generateColor();
         const x = canvas.width * Math.random();
         const y = canvas.height * Math.random();
         const dx = 1000 * (Math.random() - 0.5);
         const dy = 1000 * (Math.random() - 0.5);
-        splat(x, y, dx, dy, color);
+        splat(x, y, dx, dy, color, config.SPLAT_RADIUS);
     }
 }
 
-function mySplat (brightness, radius) {
-    // const color = config.COLORFUL ? generateColor() : Object.assign({}, config.POINTER_COLOR.getRandom());
-    const color = myGenerateColor(brightness);
-    const x = canvas.width * Math.random();
-    const y = canvas.height * Math.random();
-    const dx = 1000 * (Math.random() - 0.5);
-    const dy = 1000 * (Math.random() - 0.5);
-    
-    gl.viewport(0, 0, simWidth, simHeight);
-    splatProgram.bind();
-    gl.uniform1i(splatProgram.uniforms.uTarget, velocity.read.attach(0));
-    gl.uniform1f(splatProgram.uniforms.aspectRatio, canvas.width / canvas.height);
-    gl.uniform2f(splatProgram.uniforms.point, x / canvas.width, 1.0 - y / canvas.height);
-    gl.uniform3f(splatProgram.uniforms.color, dx, -dy, 1.0);
-    gl.uniform1f(splatProgram.uniforms.radius, radius / 100.0);
-    blit(velocity.write.fbo);
-    velocity.swap();
-
-    gl.viewport(0, 0, dyeWidth, dyeHeight);
-    gl.uniform1i(splatProgram.uniforms.uTarget, density.read.attach(0));
-    gl.uniform3f(splatProgram.uniforms.color, color.r, color.g, color.b);
-    blit(density.write.fbo);
-    density.swap();
-}
-
-function resizeCanvas () {
-    if (canvas.width != canvas.clientWidth || canvas.height != canvas.clientHeight) {
+function resizeCanvas() {
+    if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
-        initFramebuffers();
+        initFrameBuffers();
     }
 }
 
@@ -1437,7 +1333,7 @@ canvas.addEventListener('touchstart', e => {
 
 canvas.addEventListener("mousedown", () => {
     if (!config.SPLAT_ON_CLICK) return;
-    multipleSplats(parseInt(Math.random() * 20) + 5);
+    multipleSplats(Math.random() * 20 + 5);
 });
 
 window.addEventListener('mouseleave', () => {
@@ -1448,7 +1344,7 @@ window.addEventListener('touchend', e => {
     const touches = e.changedTouches;
     for (let i = 0; i < touches.length; i++)
         for (let j = 0; j < pointers.length; j++)
-            if (touches[i].identifier == pointers[j].id)
+            if (touches[i].identifier === pointers[j].id)
                 pointers[j].down = false;
 });
 
@@ -1456,22 +1352,14 @@ window.addEventListener('keydown', e => {
     if (e.code === 'KeyP')
         config.PAUSED = !config.PAUSED;
     if (e.key === ' ')
-        splatStack.push(parseInt(Math.random() * 20) + 5);
+        splatStack.push(Math.random() * 20 + 5);
 });
 
-function generateColor () {
-    let c = HSVtoRGB(Math.random(), 1.0, 1.0);
-    c.r *= 0.15;
-    c.g *= 0.15;
-    c.b *= 0.15;
-    return c;
-}
-
-function myGenerateColor (brightness) {
+function generateColor(brightness = 1) {
     return HSVtoRGB(Math.random(), 1.0, brightness);
 }
 
-function HSVtoRGB (h, s, v) {
+function HSVtoRGB(h, s, v) {
     let r, g, b, i, f, p, q, t;
     i = Math.floor(h * 6);
     f = h * 6 - i;
@@ -1480,12 +1368,36 @@ function HSVtoRGB (h, s, v) {
     t = v * (1 - (1 - f) * s);
 
     switch (i % 6) {
-        case 0: r = v, g = t, b = p; break;
-        case 1: r = q, g = v, b = p; break;
-        case 2: r = p, g = v, b = t; break;
-        case 3: r = p, g = q, b = v; break;
-        case 4: r = t, g = p, b = v; break;
-        case 5: r = v, g = p, b = q; break;
+        case 0:
+            r = v;
+            g = t;
+            b = p;
+            break;
+        case 1:
+            r = q;
+            g = v;
+            b = p;
+            break;
+        case 2:
+            r = p;
+            g = v;
+            b = t;
+            break;
+        case 3:
+            r = p;
+            g = q;
+            b = v;
+            break;
+        case 4:
+            r = t;
+            g = p;
+            b = v;
+            break;
+        case 5:
+            r = v;
+            g = p;
+            b = q;
+            break;
     }
 
     return {
@@ -1495,39 +1407,7 @@ function HSVtoRGB (h, s, v) {
     };
 }
 
-function RGBToHue(r, g, b) {
-  // Find greatest and smallest channel values
-  let cmin = Math.min(r,g,b),
-      cmax = Math.max(r,g,b),
-      delta = cmax - cmin,
-      h = 0,
-      s = 0,
-      l = 0;
-
-  // Calculate hue
-  // No difference
-  if (delta == 0)
-    h = 0;
-  // Red is max
-  else if (cmax == r)
-    h = ((g - b) / delta) % 6;
-  // Green is max
-  else if (cmax == g)
-    h = (b - r) / delta + 2;
-  // Blue is max
-  else
-    h = (r - g) / delta + 4;
-
-  h = Math.round(h * 60);
-    
-  // Make negative hues positive behind 360°
-  if (h < 0)
-      h += 360;
-
-  return h;
-}
-
-function getResolution (resolution) {
+function getResolution(resolution) {
     let aspectRatio = gl.drawingBufferWidth / gl.drawingBufferHeight;
     if (aspectRatio < 1)
         aspectRatio = 1.0 / aspectRatio;
@@ -1536,12 +1416,12 @@ function getResolution (resolution) {
     let min = Math.round(resolution);
 
     if (gl.drawingBufferWidth > gl.drawingBufferHeight)
-        return { width: max, height: min };
+        return {width: max, height: min};
     else
-        return { width: min, height: max };
+        return {width: min, height: max};
 }
 
-function getTextureScale (texture, width, height) {
+function getTextureScale(texture, width, height) {
     return {
         x: width / texture.width,
         y: height / texture.height
