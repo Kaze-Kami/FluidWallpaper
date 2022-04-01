@@ -37,39 +37,67 @@ let config = {
     BLOOM_THRESHOLD: 0.6,
     BLOOM_SOFT_KNEE: 0.7,
     POINTER_COLOR: [{ r: 0, g: 0.15, b: 0 }],
-    SOUND_SENSITIVITY: 0.25,
-    AUDIO_RESPONSIVE: true,
-    FREQ_RANGE: 8,
-    FREQ_RANGE_START: 0,
     IDLE_SPLATS: false,
     RANDOM_AMOUNT: 10,
     RANDOM_INTERVAL: 1,
     SPLAT_ON_CLICK: true,
     SHOW_MOUSE_MOVEMENT: true,
 
-    audioThreshold: .2,
-    audioSplatBrightness: 2,
-    audioSplatSize: .2,
-    nAudioSamples: 0,
-    nBins: 10,
-    audioSplatSizeExp: 1
+    // audio stuff
+    AUDIO_RESPONSE_ENABLED: true,
+    AUDIO_SPLATS: true,
+    AUDIO_SENSITIVITY: .1,
+    AUDIO_THRESHOLD: .2,
+    AUDIO_N_BINS: 10,
+    AUDIO_N_SAMPLES: 0,
+    AUDIO_FREQUENCY_SCALE: 2,
+    // splat size
+    AUDIO_SPLAT_SIZE_BASE: .2,
+    AUDIO_SPLAT_SIZE_AMP: .2,
+    // splat brightness
+    AUDIO_SPLAT_BRIGHTNESS_BASE: 2,
+    AUDIO_SPLAT_BRIGHTNESS_AMP: 2,
+    // high/low filter
+    AUDIO_CUTOFF_HIGH_LO: .7,
+    // high response brightness mods
+    AUDIO_COLOR_FILTER_AMP: 1,
+    AUDIO_COLOR_FILTER_EXP: 1,
 };
 
-const nFreq = 64;
-let peakFilter = Array(config.nBins).fill(0);
+const audioEpsilon = .002;
+const nFreq = 64; // number of audio frequencies per channel
+let peakFilter = Array(config.AUDIO_N_BINS).fill(0);
+let audioHigh = 0;
+
+function fetchProp(props, propName, cfgName, ifPresentCallback = null) {
+    if (props[propName]) {
+        const value = props[propName].value
+        config[cfgName] = value;
+        if (ifPresentCallback != null) ifPresentCallback(value);
+        // console.log(`Prop: ${cfgName}: ${value}`);
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {   
     window.wallpaperPropertyListener = {
         applyUserProperties: (properties) => {
-            if (properties.audio_threshold) config.audioThreshold = properties.audio_threshold.value;
-            if (properties.audio_splat_size) config.audioSplatSize = properties.audio_splat_size.value;
-            if (properties.audio_splat_brightness) config.audioSplatBrightness = properties.audio_splat_brightness.value;
-            if (properties.audio_samples) config.nAudioSamples = properties.audio_samples.value;
-            if (properties.n_bins) {
-                config.nBins = properties.n_bins.value;
-                peakFilter = Array(config.nBins).fill(0);
-            }
-            if (properties.audio_splat_size_exp) config.audioSplatSizeExp = properties.audio_splat_size_exp.value;
+            // audio props
+            fetchProp(properties, "audio_response_enabled", "AUDIO_RESPONSE_ENABLED");
+            fetchProp(properties, "audio_response_splats", "AUDIO_SPLATS");
+            fetchProp(properties, "audio_response_sensitivity", "AUDIO_SENSITIVITY");
+            fetchProp(properties, "audio_response_threshold", "AUDIO_THRESHOLD");
+            fetchProp(properties, "audio_response_n_bins", "AUDIO_N_BINS", (nBins) => {
+                peakFilter = Array(nBins).fill(0);
+            });
+            fetchProp(properties, "audio_response_frequency_scale", "AUDIO_FREQUENCY_SCALE");
+            fetchProp(properties, "audio_response_n_samples", "AUDIO_N_SAMPLES");
+            fetchProp(properties, "audio_response_splat_size_base", "AUDIO_SPLAT_SIZE_BASE");
+            fetchProp(properties, "audio_response_splat_size_amp", "AUDIO_SPLAT_SIZE_AMP");
+            fetchProp(properties, "audio_response_splat_brightness_base", "AUDIO_SPLAT_BRIGHTNESS_BASE");
+            fetchProp(properties, "audio_response_splat_brightness_amp", "AUDIO_SPLAT_BRIGHTNESS_AMP");
+            fetchProp(properties, "audio_response_cutoff_high_lo", "AUDIO_CUTOFF_HIGH_LO");
+            fetchProp(properties, "audio_response_color_filter_amp", "AUDIO_COLOR_FILTER_AMP");
+            fetchProp(properties, "audio_response_color_filter_exp", "AUDIO_COLOR_FILTER_EXP");
 
             if (properties.bloom_intensity) config.BLOOM_INTENSITY = properties.bloom_intensity.value;
             if (properties.bloom_threshold) config.BLOOM_THRESHOLD = properties.bloom_threshold.value;
@@ -82,8 +110,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (properties.splat_radius) config.SPLAT_RADIUS = properties.splat_radius.value;
             if (properties.velocity_diffusion) config.VELOCITY_DISSIPATION = properties.velocity_diffusion.value;
             if (properties.vorticity) config.CURL = properties.vorticity.value;
-            if (properties.sound_sensitivity) config.SOUND_SENSITIVITY = properties.sound_sensitivity.value;
-            if (properties.audio_responsive) config.AUDIO_RESPONSIVE = properties.audio_responsive.value;
             if (properties.simulation_resolution) {
                 config.SIM_RESOLUTION = properties.simulation_resolution.value;
                 initFramebuffers();
@@ -119,20 +145,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (properties.background_image) canvas.style.backgroundImage = `url("file:///${properties.background_image.value}")`;
             if (properties.repeat_background) canvas.style.backgroundRepeat = properties.repeat_background.value ? "repeat" : "no-repeat";
             if (properties.background_image_size) canvas.style.backgroundSize = properties.background_image_size.value;
-            if (properties.frequency_range) {
-                config.FREQ_RANGE = properties.frequency_range.value;
-
-                if (config.FREQ_RANGE + config.FREQ_RANGE_START > 61) {
-                    config.FREQ_RANGE_START = 62 - config.FREQ_RANGE;
-                }
-            }
-            if (properties.frequency_range_start) {
-                if (config.FREQ_RANGE + properties.frequency_range_start.value > 61) {
-                    config.FREQ_RANGE_START = 62 - config.FREQ_RANGE;
-                } else {
-                    config.FREQ_RANGE_START = properties.frequency_range_start.value;
-                }
-            }
             if (properties.idle_random_splats) {
                 config.IDLE_SPLATS = properties.idle_random_splats.value;
                 if (properties.idle_random_splats.value) {
@@ -161,58 +173,90 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     window.wallpaperRegisterAudioListener((audioArray) => {
-        const a = nFreq / config.nBins;
-        let bins = Array(config.nBins).fill(0);
+        if (!config.AUDIO_RESPONSE_ENABLED) return;
 
-        for (var i = 0; i < config.nBins; i++) {
-            const start = Math.floor(i * a);
-            const end = Math.floor((i + 1) * a);
+        let bins = Array(config.AUDIO_N_BINS).fill(0);
 
-            for (var j = start; j < end; j++) {
-                bins[i] += audioArray[j] + audioArray[nFreq + j];
+        // re-scale audio bins
+        for (let i = 0; i < config.AUDIO_N_BINS; i++) {
+            const start = Math.max(0, Math.floor(nFreq * Math.pow((i - 1) / config.AUDIO_N_BINS, 2)));
+            const end = Math.min(nFreq, Math.floor(nFreq * Math.pow((i + 2) / config.AUDIO_N_BINS, 2)));
+            // console.log(`Bin ${i}: [${start} : ${end}]`);
+            for (let j = start; j < end; j++) {
+                bins[i] += (audioArray[j] + audioArray[nFreq + j]);
             }
+            // normalize with number of frequencies used
+            const binNFreq = (end - start)
+            if (0 < binNFreq) bins[i] /= binNFreq;
+            else console.warn(`Bin ${i} has frequency range of 0!`);
         }
 
-        // var info = "";
+        // filter average volume
+        const avgAmp = bins.reduce((c, v) => c + v) / config.AUDIO_N_BINS;
+        bins = bins.map((v) => Math.max(0, v -avgAmp));
 
-        const max = Math.max.apply(null, bins);
+        // map amplitudes to values above threshold
+        // and accumulate high peak
+        let max = Math.max.apply(null, bins);
+        let frameAudioHigh = 0;
         if (0 < max) {
-            for (var i = 0;  i < config.nBins; i++) {
-                const v = bins[i] / max;
-                const th = v - peakFilter[i] - config.audioThreshold;
-                // info += `${v} (${th}), `;
-                if (0 < th) {
-                    // mySplat(0.5 + i / (2 * config.nBins), Math.exp(th, config.audioSplatBrightness));
-                    mySplat(th + config.audioSplatBrightness * (1 - th), Math.pow((1 - i / config.nBins) * config.audioSplatSize / 10, config.audioSplatSizeExp));
+            // normalize bins
+            bins = bins.map((v) => v / max);
+
+            // apply threshold to bins and update recent
+            for (let i = 0; i < config.AUDIO_N_BINS; i++) {
+                const v = bins[i];
+                let thOrg = (v - peakFilter[i] - config.AUDIO_THRESHOLD);
+                let th = Math.max(0, thOrg * (1 - Math.min(1, (peakFilter[i] + config.AUDIO_THRESHOLD))));
+                if (th < audioEpsilon) th = 0;
+                bins[i] = th;
+
+                if (config.AUDIO_CUTOFF_HIGH_LO <= i / config.AUDIO_N_BINS) {
+                    frameAudioHigh += v;
                 }
-                if (0 < config.nAudioSamples)  {
-                    peakFilter[i] = (peakFilter[i] * config.nAudioSamples + v) / (config.nAudioSamples + 1);
+
+                // let audio decay
+                if (0 < config.AUDIO_N_SAMPLES) {
+                    peakFilter[i] = (peakFilter[i] * config.AUDIO_N_SAMPLES + v) / (config.AUDIO_N_SAMPLES + 1);
                 }
             }
         }
         // let audio decay
-        else if (0 < config.nAudioSamples) {
-            for (var i = 0; i < config.nBins; i++) {
-                peakFilter[i] *= config.nAudioSamples / (config.nAudioSamples + 1);
+        else if (0 < config.AUDIO_N_SAMPLES) {
+            for (let i = 0; i < config.AUDIO_N_BINS; i++) {
+                peakFilter[i] *= config.AUDIO_N_SAMPLES / (config.AUDIO_N_SAMPLES + 1);
             }
         }
 
-        // console.log(info);
-
-        /*
-        if (!config.AUDIO_RESPONSIVE) return;
-        if (audioArray[0] > 5) return;
-
-        let bass = 0.0;
-        let half = Math.floor(audioArray.length / 2);
-
-        for (let i = 0; i <= config.FREQ_RANGE; i++) {
-            bass += audioArray[i + config.FREQ_RANGE_START];
-            bass += audioArray[half + (i + config.FREQ_RANGE_START)];
+        // maybe splat
+        max = Math.max.apply(null, bins); // recalculate max, as bin values have changed
+        if (0 < max) {
+            // console.log(bins.map((v, i) => v.toFixed(2)));
+            for (let i = 0; i < config.AUDIO_N_BINS; i++) {
+                const th = Math.min(1, bins[i] * config.AUDIO_SENSITIVITY);
+                if (0 < th && config.AUDIO_SPLATS) {
+                    // splat
+                    const brightness = th + config.AUDIO_SPLAT_BRIGHTNESS_BASE * (1 - th);
+                    const rBase = config.AUDIO_SPLAT_SIZE_BASE / 10;
+                    const rVar = 1 - Math.pow(i / config.AUDIO_N_BINS, config.AUDIO_SPLAT_SIZE_AMP);
+                    console.log(`${rBase}, ${rVar}`);
+                    const radius = rBase * rVar;
+                    // console.log(`Bin ${i}/${config.AUDIO_N_BINS} active: ${th}`);
+                    mySplat(brightness, radius);
+                }
+            }
         }
-        bass /= (config.FREQ_RANGE * 2);
-        multipleSplats(Math.floor((bass * config.SOUND_SENSITIVITY) * 10));
-        */
+
+        // normalize audioHigh
+        const div = Math.floor(config.AUDIO_N_BINS * (1 - config.AUDIO_CUTOFF_HIGH_LO));
+        if (0 < div)
+        frameAudioHigh /= div;
+        if (false && 0 < max) {
+            let info = bins.map((v) => `${v.toFixed(2)}`).reduce((p, v) => `${p}, ${v}`);
+            info +=  `, high=${frameAudioHigh.toFixed(2)}`;
+            console.log(info)
+        }
+        audioHigh = (audioHigh * config.AUDIO_N_SAMPLES + frameAudioHigh) / (config.AUDIO_N_SAMPLES + 1);
     });
 });
 
@@ -378,6 +422,13 @@ class GLProgram {
     bind () {
         gl.useProgram(this.program);
     }
+
+    uniform(fun, name, ...args) {
+        let id = this.uniforms[name];
+        if (id != null) {
+            gl[`uniform${fun}`](id, ...args);
+        }
+    }
 }
 
 function compileShader (type, source) {
@@ -385,11 +436,48 @@ function compileShader (type, source) {
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
 
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
-        throw gl.getShaderInfoLog(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const info = gl.getShaderInfoLog(shader);
+        console.log(info);
+        throw info;
+    }
 
     return shader;
-};
+}
+
+const shaderIncludeColorConversion = `
+    vec3 rgb2hsv(vec3 c) {
+        vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+        vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+        vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    
+        float d = q.x - min(q.w, q.y);
+        float e = 1.0e-10;
+        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+    
+    vec3 hsv2rgb(vec3 c) {
+        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+    }
+`;
+
+const shaderIncludeAudioResponseHelper = `
+    uniform float uAudioHigh;
+    uniform float uColorExp; // determines how much bright colors react to high peaks
+    uniform float uColorAmp; // brightness amplitude multiplier after exponentiation
+    
+    ${shaderIncludeColorConversion}
+    
+    vec3 mapColor(vec3 color) {
+        vec3 hsvColor = rgb2hsv(color);
+        // try only high for now
+        float v = hsvColor.z;
+        v = pow(v, uColorExp) * uColorAmp * uAudioHigh;
+        return vec3(color.xy, v);
+    }
+`;
 
 const baseVertexShader = compileShader(gl.VERTEX_SHADER, `
     precision highp float;
@@ -444,6 +532,8 @@ const backgroundShader = compileShader(gl.FRAGMENT_SHADER, `
 const displayShader = compileShader(gl.FRAGMENT_SHADER, `
     precision highp float;
     precision highp sampler2D;
+    
+    ${shaderIncludeAudioResponseHelper}
 
     varying vec2 vUv;
     uniform sampler2D uTexture;
@@ -451,13 +541,15 @@ const displayShader = compileShader(gl.FRAGMENT_SHADER, `
     void main () {
         vec3 C = texture2D(uTexture, vUv).rgb;
         float a = max(C.r, max(C.g, C.b));
-        gl_FragColor = vec4(C, a);
+        gl_FragColor = vec4(mapColor(C), a);
     }
 `);
 
 const displayBloomShader = compileShader(gl.FRAGMENT_SHADER, `
     precision highp float;
     precision highp sampler2D;
+    
+    ${shaderIncludeAudioResponseHelper}
 
     varying vec2 vUv;
     uniform sampler2D uTexture;
@@ -471,13 +563,15 @@ const displayBloomShader = compileShader(gl.FRAGMENT_SHADER, `
         bloom = pow(bloom.rgb, vec3(1.0 / 2.2));
         C += bloom;
         float a = max(C.r, max(C.g, C.b));
-        gl_FragColor = vec4(C, a);
+        gl_FragColor = vec4(mapColor(C), a);
     }
 `);
 
 const displayShadingShader = compileShader(gl.FRAGMENT_SHADER, `
     precision highp float;
     precision highp sampler2D;
+    
+    ${shaderIncludeAudioResponseHelper}
 
     varying vec2 vUv;
     varying vec2 vL;
@@ -504,13 +598,15 @@ const displayShadingShader = compileShader(gl.FRAGMENT_SHADER, `
         C.rgb *= diffuse;
 
         float a = max(C.r, max(C.g, C.b));
-        gl_FragColor = vec4(C, a);
+        gl_FragColor = vec4(mapColor(C), a);
     }
 `);
 
 const displayBloomShadingShader = compileShader(gl.FRAGMENT_SHADER, `
     precision highp float;
     precision highp sampler2D;
+    
+    ${shaderIncludeAudioResponseHelper}
 
     varying vec2 vUv;
     varying vec2 vL;
@@ -544,7 +640,7 @@ const displayBloomShadingShader = compileShader(gl.FRAGMENT_SHADER, `
         C += bloom;
 
         float a = max(C.r, max(C.g, C.b));
-        gl_FragColor = vec4(C, a);
+        gl_FragColor = vec4(mapColor(C), a);
     }
 `);
 
@@ -1157,28 +1253,26 @@ function render (target) {
         blit(null);
     }
 
+    let program;
     if (config.SHADING) {
-        let program = config.BLOOM ? displayBloomShadingProgram : displayShadingProgram;
-        program.bind();
-        gl.uniform2f(program.uniforms.texelSize, 1.0 / width, 1.0 / height);
-        gl.uniform1i(program.uniforms.uTexture, density.read.attach(0));
-        if (config.BLOOM) {
-            gl.uniform1i(program.uniforms.uBloom, bloom.attach(1));
-            gl.uniform1i(program.uniforms.uDithering, ditheringTexture.attach(2));
-            let scale = getTextureScale(ditheringTexture, width, height);
-            gl.uniform2f(program.uniforms.ditherScale, scale.x, scale.y);
-        }
+        program = config.BLOOM ? displayBloomShadingProgram : displayShadingProgram;
     }
     else {
-        let program = config.BLOOM ? displayBloomProgram : displayProgram;
-        program.bind();
-        gl.uniform1i(program.uniforms.uTexture, density.read.attach(0));
-        if (config.BLOOM) {
-            gl.uniform1i(program.uniforms.uBloom, bloom.attach(1));
-            gl.uniform1i(program.uniforms.uDithering, ditheringTexture.attach(2));
-            let scale = getTextureScale(ditheringTexture, width, height);
-            gl.uniform2f(program.uniforms.ditherScale, scale.x, scale.y);
-        }
+        program = config.BLOOM ? displayBloomProgram : displayProgram;
+    }
+    program.bind();
+    program.uniform("2f", "texelSize", 1.0 / width, 1.0 / height);
+    program.uniform("1i", "uTexture", density.read.attach(0));
+    if (config.BLOOM) {
+        program.uniform("1i", "uBloom", bloom.attach(1));
+        program.uniform("1i", "uDithering", ditheringTexture.attach(2));
+        let scale = getTextureScale(ditheringTexture, width, height);
+        program.uniform("2f", "ditherScale", scale.x, scale.y);
+
+        // audio uniforms
+        program.uniform("1f", "uAudioHigh", audioHigh);
+        program.uniform("1f", "uColorAmp", config.AUDIO_COLOR_FILTER_AMP);
+        program.uniform("1f", "uColorExp", config.AUDIO_COLOR_FILTER_EXP);
     }
 
     blit(target);

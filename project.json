@@ -7,78 +7,161 @@
 	{
 		"properties" : 
 		{
-			"audio_samples" : 
+			"audio_response_enabled" :
 			{
-				"fraction" : false,
-				"max" : 10,
-				"min" : 0,
-				"order" : 132,
-				"text" : "Audio Samples",
-				"type" : "slider",
-				"type" : "slider",
-				"value" : 0
-			},
-			"n_bins" : 
-			{
-				"fraction" : false,
-				"max" : 20,
-				"min" : 0,
-				"order" : 132,
-				"text" : "Audio Bins",
-				"type" : "slider",
-				"type" : "slider",
-				"value" : 10
-			},
-			"audio_threshold": {
-				"fraction" : true,
-				"max" : 1,
-				"min" : 0,
-				"order" : 132,
-				"precision" : 2,
-				"step" : 0.01,
-				"text" : "Audio Threshold",
-				"type" : "slider",
-				"value" : 0.2
-			},
-			"audio_splat_brightness": {
-				"fraction" : true,
-				"max" : 1,
-				"min" : 0,
-				"order" : 132,
-				"precision" : 2,
-				"step" : 0.01,
-				"text" : "Audio Splat Brightness",
-				"type" : "slider",
-				"value" : 0.1
-			},
-			"audio_splat_size": {
-				"fraction" : true,
-				"max" : 10,
-				"min" : 0,
-				"order" : 132,
-				"precision" : 2,
-				"step" : 0.05,
-				"text" : "Audio Splat Size",
-				"type" : "slider",
-				"value" : 0.1
-			},
-			"audio_splat_size_exp": {
-				"fraction" : true,
-				"max" : 10,
-				"min" : -10,
-				"order" : 132,
-				"precision" : 2,
-				"step" : 0.1,
-				"text" : "Audio Splat Size Exponent",
-				"type" : "slider",
-				"value" : 1
-			},
-			"audio_responsive" : 
-			{
-				"order" : 117,
+				"order" : 0,
 				"text" : "Audio Responsive",
 				"type" : "bool",
 				"value" : true
+			},
+			"audio_response_splats" :
+			{
+				"order" : 1,
+				"text" : "Audio Splats",
+				"type" : "bool",
+				"value" : true
+			},
+			"audio_response_sensitivity": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 5,
+				"min" : 0,
+				"order" : 1,
+				"precision" : 2,
+				"step" : 0.05,
+				"text" : "Audio Response Sensitivity",
+				"type" : "slider",
+				"value" : 1
+			},
+			"audio_response_threshold": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 1,
+				"min" : 0,
+				"order" : 1,
+				"precision" : 2,
+				"step" : 0.01,
+				"text" : "Audio Response Threshold",
+				"type" : "slider",
+				"value" : 0.2
+			},
+			"audio_response_n_bins" :
+			{
+				"condition" : "audio_response_enabled.value",
+				"fraction" : false,
+				"max" : 20,
+				"min" : 0,
+				"order" : 2,
+				"text" : "Audio Bins",
+				"type" : "slider",
+				"value" : 10
+			},
+			"audio_response_n_samples" :
+			{
+				"condition" : "audio_response_enabled.value",
+				"fraction" : false,
+				"max" : 20,
+				"min" : 0,
+				"order" : 2,
+				"text" : "Audio Samples (Peak smoothing)",
+				"type" : "slider",
+				"value" : 0
+			},
+			"audio_response_frequency_scale": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 10,
+				"min" : 0,
+				"order" : 2,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "Audio Response Frequency Scale",
+				"type" : "slider",
+				"value" : 2
+			},
+			"audio_response_splat_size_base": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 10,
+				"min" : 0,
+				"order" : 3,
+				"precision" : 2,
+				"step" : 0.05,
+				"text" : "Audio Response Splat Base Size",
+				"type" : "slider",
+				"value" : 0.2
+			},
+			"audio_response_splat_size_amp": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 1,
+				"min" : 0,
+				"order" : 3,
+				"precision" : 2,
+				"step" : 0.01,
+				"text" : "Audio Response Splat Size Amplitude",
+				"type" : "slider",
+				"value" : 0.2
+			},
+			"audio_response_splat_brightness_base": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 1,
+				"min" : 0,
+				"order" : 4,
+				"precision" : 2,
+				"step" : 0.01,
+				"text" : "Audio Response Splat Base Brightness",
+				"type" : "slider",
+				"value" : 0.2
+			},
+			"audio_response_splat_brightness_amp": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 1,
+				"min" : 0,
+				"order" : 4,
+				"precision" : 2,
+				"step" : 0.01,
+				"text" : "Audio Response Splat Brightness Amplitude",
+				"type" : "slider",
+				"value" : 0.2
+			},
+			"audio_response_cutoff_high_lo": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 1,
+				"min" : 0,
+				"order" : 5,
+				"precision" : 2,
+				"step" : 0.01,
+				"text" : "Audio Response Frequency Cutoff High LO",
+				"type" : "slider",
+				"value" : 0.2
+			},
+			"audio_response_color_filter_amp": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 5,
+				"min" : 0,
+				"order" : 6,
+				"precision" : 2,
+				"step" : 0.02,
+				"text" : "Audio Response Color Filter Amp",
+				"type" : "slider",
+				"value" : 1
+			},
+			"audio_response_color_filter_exp": {
+				"condition" : "audio_response_enabled.value",
+				"fraction" : true,
+				"max" : 10,
+				"min" : 0,
+				"order" : 6,
+				"precision" : 2,
+				"step" : 0.05,
+				"text" : "Audio Response Color Filter Exp",
+				"type" : "slider",
+				"value" : 1
 			},
 			"background_color" : 
 			{
@@ -207,28 +290,6 @@
 				"type" : "bool",
 				"value" : true
 			},
-			"frequency_range" : 
-			{
-				"condition" : "audio_responsive.value",
-				"fraction" : false,
-				"max" : 62,
-				"min" : 1,
-				"order" : 119,
-				"text" : "Frequency Range",
-				"type" : "slider",
-				"value" : 8
-			},
-			"frequency_range_start" : 
-			{
-				"condition" : "audio_responsive.value",
-				"fraction" : false,
-				"max" : 62,
-				"min" : 0,
-				"order" : 120,
-				"text" : "Frequency Range Start",
-				"type" : "slider",
-				"value" : 0
-			},
 			"idle_random_splats" : 
 			{
 				"order" : 107,
@@ -343,19 +404,6 @@
 				"text" : "Simulation Resolution",
 				"type" : "combo",
 				"value" : "256"
-			},
-			"sound_sensitivity" : 
-			{
-				"condition" : "audio_responsive.value",
-				"fraction" : true,
-				"max" : 10,
-				"min" : 0,
-				"order" : 118,
-				"precision" : 3,
-				"step" : 0.01,
-				"text" : "Sound Sensitivity",
-				"type" : "slider",
-				"value" : 5
 			},
 			"splat_color" : 
 			{
