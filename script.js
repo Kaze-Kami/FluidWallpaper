@@ -239,7 +239,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     const brightness = th + config.AUDIO_SPLAT_BRIGHTNESS_BASE * (1 - th);
                     const rBase = config.AUDIO_SPLAT_SIZE_BASE / 10;
                     const rVar = 1 - Math.pow(i / config.AUDIO_N_BINS, config.AUDIO_SPLAT_SIZE_AMP);
-                    console.log(`${rBase}, ${rVar}`);
+                    // console.log(`${rBase}, ${rVar}`);
                     const radius = rBase * rVar;
                     // console.log(`Bin ${i}/${config.AUDIO_N_BINS} active: ${th}`);
                     mySplat(brightness, radius);
