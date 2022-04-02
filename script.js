@@ -196,16 +196,14 @@ document.addEventListener("DOMContentLoaded", () => {
             for (let i = 0; i < config.AUDIO_N_BINS; i++) {
                 const th = Math.min(1, bins[i] * config.AUDIO_SENSITIVITY);
                 if (0 < th && config.AUDIO_SPLATS) {
-                    const brightness = th + config.AUDIO_SPLAT_BRIGHTNESS_BASE * (1 - th);
-                    const rBase = config.AUDIO_SPLAT_SIZE_BASE / 10;
-                    const rVar = 1 - Math.pow(i / config.AUDIO_N_BINS, config.AUDIO_SPLAT_SIZE_AMP);
-                    const radius = rBase * rVar;
-                    const color = generateColor(brightness);
+                    const freqValue = (1 - Math.pow(i / config.AUDIO_N_BINS, config.AUDIO_SPLAT_SIZE_AMP));
+                    const radius = config.AUDIO_SPLAT_SIZE_BASE / 10 * freqValue;
+                    const color = generateColor(th + config.AUDIO_SPLAT_BRIGHTNESS_BASE * (1 - th));
                     const x = canvas.width * Math.random();
                     const y = canvas.height * Math.random();
-                    const dx = 1000 * (Math.random() - 0.5);
-                    const dy = 1000 * (Math.random() - 0.5);
-                    splat(x, y, dx, dy, color, radius);
+                    const v = randomUnitPoint(500 * Math.pow((i + 1) / config.AUDIO_N_BINS, 2));
+                    // const v = randomUnitPoint(500);
+                    splat(x, y, v.x, v.y, color, radius);
                     isAudio = true;
                 }
             }
@@ -217,6 +215,11 @@ document.addEventListener("DOMContentLoaded", () => {
         audioHigh = (audioHigh * config.AUDIO_N_SAMPLES + frameAudioHigh) / (config.AUDIO_N_SAMPLES + 1);
     });
 });
+
+function randomUnitPoint(length = 1) {
+    const a = Math.random() * 2 * Math.PI;
+    return {"x": length * Math.cos(a), "y": length * Math.sin(a)};
+}
 
 class pointerPrototype {
     constructor() {
@@ -453,12 +456,6 @@ const colorShader = compileShader(gl.FRAGMENT_SHADER, `
 
     void main () {
         gl_FragColor = color;
-    }
-`);
-
-const backgroundShader = compileShader(gl.FRAGMENT_SHADER, `
-    void main () {
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     }
 `);
 
@@ -879,7 +876,6 @@ let ditheringTexture = createTextureAsync('LDR_RGB1_0.png');
 
 const clearProgram = new GLProgram(baseVertexShader, clearShader);
 const colorProgram = new GLProgram(baseVertexShader, colorShader);
-const backgroundProgram = new GLProgram(baseVertexShader, backgroundShader);
 const displayProgram = new GLProgram(baseVertexShader, displayShader);
 const displayBloomProgram = new GLProgram(baseVertexShader, displayBloomShader);
 const displayShadingProgram = new GLProgram(baseVertexShader, displayShadingShader);
@@ -1087,8 +1083,7 @@ function input() {
     }
 }
 
-function
-step(dt) {
+function step(dt) {
     gl.disable(gl.BLEND);
     gl.viewport(0, 0, simWidth, simHeight);
 
@@ -1147,8 +1142,9 @@ step(dt) {
 
     gl.viewport(0, 0, dyeWidth, dyeHeight);
 
-    if (!ext.supportLinearFiltering)
+    if (!ext.supportLinearFiltering) {
         advectionProgram.uniform("2f", "dyeTexelSize", 1.0 / dyeWidth, 1.0 / dyeHeight);
+    }
     advectionProgram.uniform("1i", "uVelocity", velocity.read.attach(0));
     advectionProgram.uniform("1i", "uSource", density.read.attach(1));
     advectionProgram.uniform("1f", "dissipation", config.DENSITY_DISSIPATION);
@@ -1271,9 +1267,8 @@ function multipleSplats(amount) {
         const color = generateColor();
         const x = canvas.width * Math.random();
         const y = canvas.height * Math.random();
-        const dx = 1000 * (Math.random() - 0.5);
-        const dy = 1000 * (Math.random() - 0.5);
-        splat(x, y, dx, dy, color, config.SPLAT_RADIUS);
+        const v = randomUnitPoint(1000);
+        splat(x, y, v.x, v.y, color, config.SPLAT_RADIUS);
     }
 }
 
@@ -1423,19 +1418,4 @@ function getTextureScale(texture, width, height) {
         x: width / texture.width,
         y: height / texture.height
     };
-}
-
-function rgbToPointerColor(color) {
-    let c = color.split(" ");
-    // let hue = RGBToHue(c[0], c[1], c[2]);
-    // let c2 = HSVtoRGB(hue/360, 1.0, 1.0);
-    // c2.r *= 0.15;
-    // c2.g *= 0.15;
-    // c2.b *= 0.15;
-    // return c2;
-    return {
-        r: c[0] * 0.15,
-        g: c[1] * 0.15,
-        b: c[2] * 0.15
-    }
 }
