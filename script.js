@@ -14,6 +14,8 @@ function idleSplatsFunction() {
     if (audioLessFrames > 10) {
         multipleSplats(Math.random() * config.RANDOM_AMOUNT + (config.RANDOM_AMOUNT / 2) + 1);
     }
+    clearInterval(idleSplats);
+    idleSplats = setInterval(idleSplatsFunction, Math.random() * config.RANDOM_INTERVAL * 1000);
 }
 
 let config = {
@@ -132,15 +134,10 @@ document.addEventListener("DOMContentLoaded", () => {
             fetchProp(properties, "random_splat_interval", "RANDOM_INTERVAL", () => {
                 if (config.IDLE_SPLATS) {
                     clearInterval(idleSplats);
-                    idleSplats = setInterval(idleSplatsFunction, config.RANDOM_INTERVAL * 1000);
+                    idleSplats = setInterval(idleSplatsFunction, Math.random() * config.RANDOM_INTERVAL * 1000);
                 }
             });
-            fetchProp(properties, "random_splat_amount", "RANDOM_AMOUNT", () => {
-                if (config.IDLE_SPLATS) {
-                    clearInterval(idleSplats);
-                    idleSplats = setInterval(idleSplatsFunction, config.RANDOM_INTERVAL * 1000);
-                }
-            });
+            fetchProp(properties, "random_splat_amount", "RANDOM_AMOUNT");
             fetchProp(properties, "splat_on_click", "SPLAT_ON_CLICK");
             fetchProp(properties, "show_mouse_movement", "SHOW_MOUSE_MOVEMENT");
         }
@@ -148,8 +145,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // noinspection JSUnresolvedFunction
     window.wallpaperRegisterAudioListener((audioArray) => {
+        audioLessFrames += 1;
         if (!config.AUDIO_RESPONSE_ENABLED) {
-            audioLessFrames += 1;
             return;
         }
 
