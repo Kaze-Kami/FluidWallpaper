@@ -8,12 +8,10 @@ Array.prototype.getRandom = function () {
     return this[Math.floor(Math.random() * this.length)];
 };
 
-let splatColors = [{r: 0, g: 0.15, b: 0}];
-
 let idleSplats;
 
 function idleSplatsFunction() {
-    multipleSplats(parseInt(Math.random() * config.RANDOM_AMOUNT) + (config.RANDOM_AMOUNT / 2) + 1);
+    multipleSplats(Math.random() * config.RANDOM_AMOUNT + (config.RANDOM_AMOUNT / 2) + 1);
 }
 
 let config = {
@@ -26,7 +24,6 @@ let config = {
     CURL: 30,
     SPLAT_RADIUS: 0.3,
     SHADING: true,
-    COLORFUL: true,
     PAUSED: false,
     BACK_COLOR: {r: 0, g: 0, b: 0},
     TRANSPARENT: false,
@@ -103,7 +100,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (properties.bloom_intensity) config.BLOOM_INTENSITY = properties.bloom_intensity.value;
             if (properties.bloom_threshold) config.BLOOM_THRESHOLD = properties.bloom_threshold.value;
-            if (properties.colorful) config.COLORFUL = properties.colorful.value;
             if (properties.density_diffusion) config.DENSITY_DISSIPATION = properties.density_diffusion.value;
             if (properties.enable_bloom) config.BLOOM = properties.enable_bloom.value;
             if (properties.paused) config.PAUSED = properties.paused.value;
@@ -120,14 +116,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 config.DYE_RESOLUTION = properties.dye_resolution.value;
                 initFrameBuffers();
             }
-            if (properties.splat_color) {
-                splatColors[0] = rgbToPointerColor(properties.splat_color.value);
-                if (!config.COLORFUL) config.POINTER_COLOR = [splatColors[0]];
-            }
-            if (properties.splat_color_2) splatColors[1] = rgbToPointerColor(properties.splat_color_2.value);
-            if (properties.splat_color_3) splatColors[2] = rgbToPointerColor(properties.splat_color_3.value);
-            if (properties.splat_color_4) splatColors[3] = rgbToPointerColor(properties.splat_color_4.value);
-            if (properties.splat_color_5) splatColors[4] = rgbToPointerColor(properties.splat_color_5.value);
             if (properties.background_color) {
                 let c = properties.background_color.value.split(" "),
                     r = Math.floor(c[0] * 255),
@@ -138,15 +126,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 config.BACK_COLOR.g = g;
                 config.BACK_COLOR.b = b;
             }
-            if (properties.more_colors && !properties.more_colors.value) {
-                config.POINTER_COLOR = [splatColors[0]];
-            } else if (properties.more_colors && properties.more_colors.value) {
-                config.POINTER_COLOR = splatColors;
-            }
-            if (properties.use_background_image) config.TRANSPARENT = properties.use_background_image.value;
-            if (properties.background_image) canvas.style.backgroundImage = `url("file:///${properties.background_image.value}")`;
-            if (properties.repeat_background) canvas.style.backgroundRepeat = properties.repeat_background.value ? "repeat" : "no-repeat";
-            if (properties.background_image_size) canvas.style.backgroundSize = properties.background_image_size.value;
             if (properties.idle_random_splats) {
                 config.IDLE_SPLATS = properties.idle_random_splats.value;
                 if (properties.idle_random_splats.value) {
@@ -231,7 +210,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     const rBase = config.AUDIO_SPLAT_SIZE_BASE / 10;
                     const rVar = 1 - Math.pow(i / config.AUDIO_N_BINS, config.AUDIO_SPLAT_SIZE_AMP);
                     const radius = rBase * rVar;
-                    mySplat(brightness, radius);
+                    const color = generateColor(brightness);
+                    const x = canvas.width * Math.random();
+                    const y = canvas.height * Math.random();
+                    const dx = 1000 * (Math.random() - 0.5);
+                    const dy = 1000 * (Math.random() - 0.5);
+                    splat(x, y, dx, dy, color, radius);
                     isAudio = true;
                 }
             }
@@ -253,7 +237,7 @@ class pointerPrototype {
         this.dy = 0;
         this.down = false;
         // this.moved = false;
-        this.color = config.COLORFUL ? generateColor() : config.POINTER_COLOR.getRandom();
+        this.color = generateColor(.15);
     }
 }
 
@@ -1099,7 +1083,7 @@ function input() {
     for (let i = 0; i < pointers.length; i++) {
         const p = pointers[i];
         if (p.moved) {
-            splat(p.x, p.y, p.dx, p.dy, p.color);
+            splat(p.x, p.y, p.dx, p.dy, p.color, config.SPLAT_RADIUS);
             p.moved = false;
         }
     }
@@ -1108,7 +1092,7 @@ function input() {
         lastColorChangeTime = Date.now();
         for (let i = 0; i < pointers.length; i++) {
             const p = pointers[i];
-            p.color = config.COLORFUL ? generateColor() : config.POINTER_COLOR.getRandom();
+            p.color = generateColor(.15);
         }
     }
 }
@@ -1186,30 +1170,18 @@ function render(target) {
     if (config.BLOOM)
         applyBloom(density.read, bloom);
 
-    if (target == null || !config.TRANSPARENT) {
-        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-        gl.enable(gl.BLEND);
-    } else {
-        gl.disable(gl.BLEND);
-    }
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.enable(gl.BLEND);
 
     let width = target == null ? gl.drawingBufferWidth : dyeWidth;
     let height = target == null ? gl.drawingBufferHeight : dyeHeight;
 
     gl.viewport(0, 0, width, height);
 
-    if (!config.TRANSPARENT) {
-        colorProgram.bind();
-        let bc = config.BACK_COLOR;
-        gl.uniform4f(colorProgram.uniforms.color, bc.r / 255, bc.g / 255, bc.b / 255, 1);
-        blit(target);
-    }
-
-    if (target == null && config.TRANSPARENT) {
-        backgroundProgram.bind();
-        gl.uniform1f(backgroundProgram.uniforms.aspectRatio, canvas.width / canvas.height);
-        blit(null);
-    }
+    colorProgram.bind();
+    let bc = config.BACK_COLOR;
+    gl.uniform4f(colorProgram.uniforms.color, bc.r / 255, bc.g / 255, bc.b / 255, 1);
+    blit(target);
 
     let program;
     if (config.SHADING) {
@@ -1235,6 +1207,14 @@ function render(target) {
     blit(target);
 }
 
+// expects bloomBlurProgram to be bound
+function blurTo(last, dest) {
+    bloomBlurProgram.uniform("2f",  "texelSize", 1.0 / last.width, 1.0 / last.height);
+    bloomBlurProgram.uniform("1i",  "uTexture", last.attach(0));
+    gl.viewport(0, 0, dest.width, dest.height);
+    blit(dest.fbo);
+}
+
 function applyBloom(source, destination) {
     if (bloomFrameBuffers.length < 2)
         return;
@@ -1256,10 +1236,7 @@ function applyBloom(source, destination) {
     bloomBlurProgram.bind();
     for (let i = 0; i < bloomFrameBuffers.length; i++) {
         let dest = bloomFrameBuffers[i];
-        bloomBlurProgram.uniform("2f",  "texelSize", 1.0 / last.width, 1.0 / last.height);
-        bloomBlurProgram.uniform("1i",  "uTexture", last.attach(0));
-        gl.viewport(0, 0, dest.width, dest.height);
-        blit(dest.fbo);
+        blurTo(last, dest);
         last = dest;
     }
 
@@ -1268,10 +1245,7 @@ function applyBloom(source, destination) {
 
     for (let i = bloomFrameBuffers.length - 2; i >= 0; i--) {
         let baseTex = bloomFrameBuffers[i];
-        bloomBlurProgram.uniform("2f",  "texelSize", 1.0 / last.width, 1.0 / last.height);
-        bloomBlurProgram.uniform("1i",  "uTexture", last.attach(0));
-        gl.viewport(0, 0, baseTex.width, baseTex.height);
-        blit(baseTex.fbo);
+        blurTo(last, baseTex);
         last = baseTex;
     }
 
@@ -1284,46 +1258,7 @@ function applyBloom(source, destination) {
     blit(destination.fbo);
 }
 
-function splat(x, y, dx, dy, color) {
-    gl.viewport(0, 0, simWidth, simHeight);
-    splatProgram.bind();
-    splatProgram.uniform("1i",  "uTarget", velocity.read.attach(0));
-    gl.uniform1f(splatProgram.uniforms.aspectRatio, canvas.width / canvas.height);
-    splatProgram.uniform("2f",  "point", x / canvas.width, 1.0 - y / canvas.height);
-    gl.uniform3f(splatProgram.uniforms.color, dx, -dy, 1.0);
-    splatProgram.uniform("1f",  "radius", config.SPLAT_RADIUS / 100.0);
-    blit(velocity.write.fbo);
-    velocity.swap();
-
-    gl.viewport(0, 0, dyeWidth, dyeHeight);
-    splatProgram.uniform("1i",  "uTarget", density.read.attach(0));
-    gl.uniform3f(splatProgram.uniforms.color, color.r, color.g, color.b);
-    blit(density.write.fbo);
-    density.swap();
-}
-
-function multipleSplats(amount) {
-    for (let i = 0; i < amount; i++) {
-        const color = config.COLORFUL ? generateColor() : Object.assign({}, config.POINTER_COLOR.getRandom());
-        color.r *= 10.0;
-        color.g *= 10.0;
-        color.b *= 10.0;
-        const x = canvas.width * Math.random();
-        const y = canvas.height * Math.random();
-        const dx = 1000 * (Math.random() - 0.5);
-        const dy = 1000 * (Math.random() - 0.5);
-        splat(x, y, dx, dy, color);
-    }
-}
-
-function mySplat(brightness, radius) {
-    // const color = config.COLORFUL ? generateColor() : Object.assign({}, config.POINTER_COLOR.getRandom());
-    const color = myGenerateColor(brightness);
-    const x = canvas.width * Math.random();
-    const y = canvas.height * Math.random();
-    const dx = 1000 * (Math.random() - 0.5);
-    const dy = 1000 * (Math.random() - 0.5);
-
+function splat(x, y, dx, dy, color, radius) {
     gl.viewport(0, 0, simWidth, simHeight);
     splatProgram.bind();
     splatProgram.uniform("1i",  "uTarget", velocity.read.attach(0));
@@ -1339,6 +1274,17 @@ function mySplat(brightness, radius) {
     gl.uniform3f(splatProgram.uniforms.color, color.r, color.g, color.b);
     blit(density.write.fbo);
     density.swap();
+}
+
+function multipleSplats(amount) {
+    for (let i = 0; i < amount; i++) {
+        const color = generateColor();
+        const x = canvas.width * Math.random();
+        const y = canvas.height * Math.random();
+        const dx = 1000 * (Math.random() - 0.5);
+        const dy = 1000 * (Math.random() - 0.5);
+        splat(x, y, dx, dy, color, config.SPLAT_RADIUS);
+    }
 }
 
 function resizeCanvas() {
@@ -1394,7 +1340,7 @@ canvas.addEventListener('touchstart', e => {
 
 canvas.addEventListener("mousedown", () => {
     if (!config.SPLAT_ON_CLICK) return;
-    multipleSplats(parseInt(Math.random() * 20) + 5);
+    multipleSplats(Math.random() * 20 + 5);
 });
 
 window.addEventListener('mouseleave', () => {
@@ -1413,18 +1359,10 @@ window.addEventListener('keydown', e => {
     if (e.code === 'KeyP')
         config.PAUSED = !config.PAUSED;
     if (e.key === ' ')
-        splatStack.push(parseInt(Math.random() * 20) + 5);
+        splatStack.push(Math.random() * 20 + 5);
 });
 
-function generateColor() {
-    let c = HSVtoRGB(Math.random(), 1.0, 1.0);
-    c.r *= 0.15;
-    c.g *= 0.15;
-    c.b *= 0.15;
-    return c;
-}
-
-function myGenerateColor(brightness) {
+function generateColor(brightness = 1) {
     return HSVtoRGB(Math.random(), 1.0, brightness);
 }
 

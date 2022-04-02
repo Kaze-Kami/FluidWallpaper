@@ -170,34 +170,6 @@
 				"type" : "color",
 				"value" : "0 0 0"
 			},
-			"background_image" : 
-			{
-				"condition" : "use_background_image.value",
-				"fileType" : "image",
-				"order" : 103,
-				"text" : "Background Image",
-				"type" : "file",
-				"value" : ""
-			},
-			"background_image_size" : 
-			{
-				"condition" : "use_background_image.value",
-				"options" : 
-				[
-					{
-						"label" : "Contain",
-						"value" : "contain"
-					},
-					{
-						"label" : "Cover",
-						"value" : "Cover"
-					}
-				],
-				"order" : 105,
-				"text" : "Background Image Size",
-				"type" : "combo",
-				"value" : "contain"
-			},
 			"bloom_intensity" : 
 			{
 				"fraction" : true,
@@ -221,13 +193,6 @@
 				"text" : "Bloom Threshold",
 				"type" : "slider",
 				"value" : 0.59999999999999998
-			},
-			"colorful" : 
-			{
-				"order" : 110,
-				"text" : "Random Color",
-				"type" : "bool",
-				"value" : true
 			},
 			"density_diffusion" : 
 			{
@@ -297,14 +262,6 @@
 				"type" : "bool",
 				"value" : false
 			},
-			"more_colors" : 
-			{
-				"condition" : "!colorful.value",
-				"order" : 112,
-				"text" : "More Colors",
-				"type" : "bool",
-				"value" : false
-			},
 			"paused" : 
 			{
 				"order" : 129,
@@ -349,14 +306,6 @@
 				"text" : "Random Splat Interval",
 				"type" : "slider",
 				"value" : 1
-			},
-			"repeat_background" : 
-			{
-				"condition" : "use_background_image.value",
-				"order" : 104,
-				"text" : "Repeat Background",
-				"type" : "bool",
-				"value" : false
 			},
 			"schemecolor" : 
 			{
@@ -405,46 +354,6 @@
 				"type" : "combo",
 				"value" : "256"
 			},
-			"splat_color" : 
-			{
-				"condition" : "!colorful.value",
-				"order" : 111,
-				"text" : "Splat Color",
-				"type" : "color",
-				"value" : "0 1 0"
-			},
-			"splat_color_2" : 
-			{
-				"condition" : "more_colors.value && !colorful.value",
-				"order" : 113,
-				"text" : "Splat Color 2",
-				"type" : "color",
-				"value" : "0 1 1"
-			},
-			"splat_color_3" : 
-			{
-				"condition" : "more_colors.value && !colorful.value",
-				"order" : 114,
-				"text" : "Splat Color 3",
-				"type" : "color",
-				"value" : "0 0 1"
-			},
-			"splat_color_4" : 
-			{
-				"condition" : "more_colors.value && !colorful.value",
-				"order" : 115,
-				"text" : "Splat Color 4",
-				"type" : "color",
-				"value" : "1 0 0"
-			},
-			"splat_color_5" : 
-			{
-				"condition" : "more_colors.value && !colorful.value",
-				"order" : 116,
-				"text" : "Splat Color 5",
-				"type" : "color",
-				"value" : "0.9411764705882353 1 0"
-			},
 			"splat_on_click" : 
 			{
 				"order" : 101,
@@ -464,14 +373,7 @@
 				"type" : "slider",
 				"value" : 0.29999999999999999
 			},
-			"use_background_image" : 
-			{
-				"order" : 102,
-				"text" : "Use Background Image",
-				"type" : "bool",
-				"value" : false
-			},
-			"velocity_diffusion" : 
+			"velocity_diffusion" :
 			{
 				"fraction" : true,
 				"max" : 1,
