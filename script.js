@@ -201,7 +201,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     const color = generateColor(th + config.AUDIO_SPLAT_BRIGHTNESS_BASE * (1 - th));
                     const x = canvas.width * Math.random();
                     const y = canvas.height * Math.random();
-                    const v = randomUnitPoint(500 * Math.pow((i + 1) / config.AUDIO_N_BINS, 2));
+                    const v = randomUnitPoint(200 + 500 * Math.pow((i + 1) / config.AUDIO_N_BINS, 2));
                     // const v = randomUnitPoint(500);
                     splat(x, y, v.x, v.y, color, radius);
                     isAudio = true;
